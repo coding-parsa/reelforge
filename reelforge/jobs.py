@@ -12,7 +12,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import ai, assets_pool, compose, hooks, ingest, paths, render, store, themes
+from . import ai, assets_pool, autoscript, compose, hooks, ingest, paths, render, store, themes
 
 _base_url = "http://127.0.0.1:8765"
 _cancel: dict[str, threading.Event] = {}
@@ -53,7 +53,7 @@ def brand_from_settings() -> dict:
     logo = (s.get("brand_logo") or "").strip()
     if not logo:
         cand = paths.assets_dir() / "logo.png"
-        logo = "/assets/logo.png" if cand.exists() or (paths.bundled_dir() / "assets" / "logo.png").exists() else ""
+        logo = "/assets/logo.png" if cand.exists() or (paths.bundled_assets_dir() / "logo.png").exists() else ""
     elif not logo.startswith("/"):
         p = Path(logo)
         logo = f"/assets/{p.name}" if p.exists() else ""
@@ -158,9 +158,14 @@ def ensure_script(project: dict, job_id: int | None = None) -> dict:
     if not store.get_setting("auto_generate", True):
         store.update_project(pid, status="needs_script")
         return store.get_project(pid)
-    if (store.get_setting("ai_provider") or "none") == "none":
-        store.update_project(pid, status="needs_script",
-                             error="No AI provider configured — write the script in the editor.")
+
+    # No key? The article can still become cards on its own — the queue never dead-ends.
+    if (store.get_setting("ai_provider") or "none") in ("none", ""):
+        script, warn = autoscript.build(article, brand)
+        meta = {**(project.get("meta") or {}), **autoscript.meta(article, script, brand)}
+        store.update_project(pid, script=script, status="script_ready", meta=meta,
+                             error="; ".join(warn)[:300] or None)
+        log(f"script for {pid} built from the article (no AI configured)")
         return store.get_project(pid)
 
     if job_id:

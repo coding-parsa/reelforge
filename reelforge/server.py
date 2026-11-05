@@ -19,9 +19,9 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
-from . import ai, assets_pool, hooks, ingest, jobs, paths, render, secrets, store, themes
+from . import ai, assets_pool, autoscript, hooks, ingest, jobs, paths, render, secrets, store, themes
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 web_dir = paths.bundled_dir() / "web"
 
 app = FastAPI(title="Reelforge", version=APP_VERSION, docs_url=None, redoc_url=None)
@@ -138,6 +138,8 @@ def bootstrap() -> dict:
         "projects": [_project_summary(p) for p in store.list_projects()],
         "queue": jobs.status(),
         "providers": [{"name": k, **v} for k, v in ai.PROVIDERS.items()],
+        "presets": ai.PROVIDER_PRESETS,
+        "ai_configured": (store.get_setting("ai_provider") or "none") not in ("none", ""),
         "prompts": {"script": ai.DEFAULT_SCRIPT_PROMPT, "meta": ai.DEFAULT_META_PROMPT},
         "platform": {"os": sys.platform, "frozen": paths.is_frozen(), "home": str(paths.home_dir())},
     }
@@ -205,6 +207,68 @@ async def ai_test(request: Request) -> dict:
         return ai.test_connection()
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=200)
+
+
+@app.post("/api/ai/detect")
+async def ai_detect(request: Request) -> dict:
+    """Paste a key, get a provider: the whole setup for people who don't know base URLs."""
+    _guard(request)
+    data = await body_json(request)
+    result = ai.detect_provider(str(data.get("key") or ""))
+    if data.get("apply"):
+        store.set_setting("ai_provider", result["provider"])
+        if result.get("base_url"):
+            store.set_setting("ai_base_url", result["base_url"])
+        if result.get("model"):
+            store.set_setting("ai_model", result["model"])
+        store.set_setting("ai_key", secrets.protect(str(data.get("key") or "").strip()))
+    return result
+
+
+@app.post("/api/ai/models")
+async def ai_models(request: Request) -> dict:
+    _guard(request)
+    data = await body_json(request)
+    models = ai.list_models(base=(data.get("base_url") or None),
+                            key=(data.get("key") if data.get("key") else None),
+                            provider=(data.get("provider") or None))
+    return {"ok": bool(models), "models": models,
+            "error": None if models else "The endpoint did not answer with a model list — type the model name."}
+
+
+@app.get("/api/ai/local")
+def ai_local() -> dict:
+    found = ai.find_local_models()
+    return {"ok": bool(found), "servers": found,
+            "hint": None if found else "No local model server found on this computer "
+                                       "(Ollama, LM Studio, llama.cpp)."}
+
+
+@app.get("/api/demo")
+async def demo(request: Request) -> dict:
+    """One click: a finished sample project so a new user can watch the product work."""
+    _guard(request)
+    brand = jobs.brand_from_settings()
+    sample = """Four years of university is not the only way into a skilled job.
+
+In Germany, an apprenticeship pays a wage from the first month, usually between 900 and 1200 euros,
+and the employer covers the training. Half the week you work, half the week you are in school.
+
+Most applicants send their file to three or four companies before anyone answers. The ones who
+attach a short motivation letter in German get replies twice as often.
+
+The contract is the only thing that matters for the visa. Without a signed contract you cannot
+apply, and the process then takes eight to twelve weeks."""
+    article = ingest.from_text(sample, "Apprenticeship in Germany")
+    article["image"] = ""
+    project = store.new_project(article["title"], "", "text")
+    script, _ = autoscript.build(article, brand)
+    meta = autoscript.meta(article, script, brand)
+    store.update_project(project["id"],
+                         article=article, script=script, meta=meta, brand=brand,
+                         design={"mode": "auto", "theme": "navy_gold"},
+                         status="draft")
+    return {"ok": True, "project": store.get_project(project["id"])}
 
 
 @app.get("/api/binaries")
@@ -293,12 +357,21 @@ async def write_script(pid: str, request: Request) -> dict:
     data = await body_json(request)
     mode = data.get("mode") or "ai"
     brand = project.get("brand") or jobs.brand_from_settings()
+    article = project.get("article") or {}
     if mode == "blank":
-        script = ai.blank_script(brand, ai._lang(project.get("article") or {}))
+        script = ai.blank_script(brand, ai._lang(article))
         store.update_project(pid, script=script, status="script_ready")
         return {"ok": True, "script": script, "warnings": []}
+    if mode == "auto":
+        script, warnings = autoscript.build(article, brand)
+        meta = autoscript.meta(article, script, brand)
+        store.update_project(pid, script=script, status="script_ready",
+                             meta={**(project.get("meta") or {}), **meta},
+                             error=None)
+        return {"ok": True, "script": script, "warnings": warnings, "project": store.get_project(pid)}
     if (store.get_setting("ai_provider") or "none") == "none":
-        return JSONResponse({"ok": False, "error": "No AI provider configured (Settings → AI)."}, status_code=200)
+        return JSONResponse({"ok": False, "error": "No AI configured — use “Fill from the article” instead."},
+                            status_code=200)
     try:
         result = ai.generate_script(project.get("article") or {}, brand,
                                     scene_count=int(data.get("scene_count") or 6),
@@ -350,10 +423,15 @@ async def rewrite_scene(pid: str, request: Request) -> dict:
 async def make_meta(pid: str, request: Request) -> dict:
     _guard(request)
     project = _project_or_404(pid)
+    brand = project.get("brand") or jobs.brand_from_settings()
     if not project.get("script"):
         return JSONResponse({"ok": False, "error": "Write the script first."}, status_code=200)
+    if (store.get_setting("ai_provider") or "none") == "none":
+        meta = autoscript.meta(project.get("article") or {}, project["script"], brand)
+        store.update_project(pid, meta={**(project.get("meta") or {}), **meta})
+        return {"ok": True, "meta": store.get_project(pid).get("meta"), "mode": "auto"}
     try:
-        meta = ai.generate_meta(project["script"], project.get("brand") or jobs.brand_from_settings())
+        meta = ai.generate_meta(project["script"], brand)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=200)
     store.update_project(pid, meta={**(project.get("meta") or {}), **meta})

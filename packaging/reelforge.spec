@@ -10,6 +10,8 @@ datas = [
     (str(ROOT / "reelforge" / "web"), "web"),
     (str(ROOT / "assets" / "fonts"), "assets/fonts"),
     (str(ROOT / "assets" / "sfx"), "assets/sfx"),
+    (str(ROOT / "assets" / "broll"), "assets/broll"),
+    (str(ROOT / "assets" / "music"), "assets/music"),
     (str(ROOT / "themes"), "themes"),
     (str(ROOT / "docs"), "docs"),
 ]

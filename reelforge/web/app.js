@@ -26,6 +26,10 @@ const I18N = {
     'common.none': 'None', 'common.yes': 'Yes', 'common.no': 'No', 'common.retry': 'Retry',
     'common.apply': 'Rewrite',
     'studio.new': 'New video', 'studio.title': 'Video title', 'studio.source': 'Source',
+    'studio.makecards': 'Make the cards', 'studio.makeai': 'Write with AI', 'studio.result': 'Your video',
+    'f.label': 'Small label', 'f.big': 'Big text', 'f.body': 'Sentence under it', 'f.chip': 'Tag',
+    'f.num': 'Number', 'f.unit': 'Unit', 'f.bullets': 'List items',
+    'k.fact': 'Text card', 'k.stat': 'Number card', 'k.list': 'List card', 'k.cta': 'End card',
     'studio.url': 'Article URL', 'studio.paste': 'Paste text or a script instead',
     'studio.brief': 'Direction for the AI (optional)', 'studio.brief.ph': 'e.g. blunt tone, audience 18-24, mention the deadline',
     'studio.generate': 'Write the script', 'studio.blank': 'Start from scratch',
@@ -77,6 +81,10 @@ const I18N = {
     'common.none': 'هیچ', 'common.yes': 'بله', 'common.no': 'خیر', 'common.retry': 'تلاش دوباره',
     'common.apply': 'بازنویسی',
     'studio.new': 'ویدیوی تازه', 'studio.title': 'عنوان ویدیو', 'studio.source': 'منبع',
+    'studio.makecards': 'ساخت کارت‌ها', 'studio.makeai': 'نوشتن با هوش مصنوعی', 'studio.result': 'ویدیوی تو',
+    'f.label': 'برچسب کوچک', 'f.big': 'متن اصلی', 'f.body': 'جملهٔ زیر آن', 'f.chip': 'برچسب',
+    'f.num': 'عدد', 'f.unit': 'واحد', 'f.bullets': 'موارد فهرست',
+    'k.fact': 'کارت متنی', 'k.stat': 'کارت عددی', 'k.list': 'کارت فهرست', 'k.cta': 'کارت پایانی',
     'studio.url': 'نشانی مقاله', 'studio.paste': 'یا متن را اینجا بچسبان',
     'studio.brief': 'راهنمای هوش مصنوعی (اختیاری)', 'studio.brief.ph': 'مثال: لحن صریح، مخاطب ۱۸ تا ۲۴ سال، به مهلت اشاره کن',
     'studio.generate': 'نوشتن متن', 'studio.blank': 'از صفر شروع می‌کنم',
@@ -235,6 +243,14 @@ function render() {
 }
 
 /* ================================================================== STUDIO */
+function backToStart() {
+  S.project = null;
+  S.preview = null;
+  S.view = 'studio';
+  render();
+  setTimeout(() => $('#startInput')?.focus(), 60);
+}
+
 async function openProject(pid) {
   try {
     S.project = await api('/api/project/' + pid);
@@ -263,12 +279,7 @@ function renderStudio(view, crumbs, actions) {
     ${p ? `<button class="btn primary small" data-act="render" ${canRender ? '' : 'disabled'}>▸ ${t('studio.render')}</button>` : ''}`;
 
   if (!p) {
-    view.innerHTML = `
-      <div class="empty-state">
-        <h2>${t('studio.empty')}</h2>
-        <p class="muted">${esc(S.settings.brand_name || 'Reelforge')} · ${esc(S.settings.brand_site || '')}</p>
-        <button class="btn primary" data-act="new">${t('studio.new')}</button>
-      </div>`;
+    renderStart(view);
     return;
   }
 
@@ -277,6 +288,22 @@ function renderStudio(view, crumbs, actions) {
   view.innerHTML = `
     <div class="studio">
       <div class="studio-main">
+        ${p.video ? `<div class="card resultcard">
+          <div class="row" style="margin-bottom:10px"><h3 style="margin:0">${t('studio.result')}</h3>
+            <span class="spacer"></span>
+            <span class="tiny muted">${fmtDur(p.duration)} · ${p.size_mb || 0} MB</span></div>
+          <video src="/out/${p.id}/video.mp4" controls preload="metadata" poster="/out/${p.id}/cover.jpg"></video>
+          <div class="row" style="margin-top:10px">
+            <a class="btn primary small" href="/out/${p.id}/video.mp4" download>${t('library.download')}</a>
+            <button class="btn ghost small" data-act="openout" data-path="${esc(p.video)}">${t('settings.openfolder')}</button>
+            <button class="btn ghost small" data-act="openlib">${t('nav.library')}</button>
+          </div>
+        </div>` : ''}
+        <div class="jobbar" id="jobbar" hidden>
+          <div class="jprog"><i id="jprog"></i></div>
+          <span class="jmsg" id="jmsg"></span>
+          <button class="btn ghost small" data-act="canceljob">Cancel</button>
+        </div>
         ${p.status === 'review' ? `<div class="card" style="border-color:rgba(111,214,196,.45);background:rgba(111,214,196,.06)">
           <div class="row"><b>Script ready — waiting for your approval</b><span class="spacer"></span>
             <button class="btn small" data-act="preview">${t('studio.preview')}</button>
@@ -304,9 +331,13 @@ function renderStudio(view, crumbs, actions) {
             <input type="text" id="brief" placeholder="${esc(t('studio.brief.ph'))}" value="${esc((p.meta || {}).brief || '')}">
           </label>
           <div class="row">
-            <button class="btn primary small" data-act="generate">✦ ${t('studio.generate')}</button>
+            <button class="btn primary small" data-act="generate">${p.script ? '↻ Regenerate cards' : '✍ ' + t('studio.makecards')}</button>
+            ${S.boot.ai_configured ? `<button class="btn small" data-act="generate-ai">✦ ${t('studio.makeai')}</button>` : ''}
             <button class="btn ghost small" data-act="blank">${t('studio.blank')}</button>
           </div>
+          <p class="tiny muted" style="margin:8px 0 0">${S.boot.ai_configured
+            ? '“Regenerate” rebuilds the cards from the article text — no AI, instant, free.'
+            : 'No AI key set: the cards are built from the article text itself. Add a key in Settings to write them with a model.'}</p>
         </div>
 
         <div class="card">
@@ -315,7 +346,16 @@ function renderStudio(view, crumbs, actions) {
             <span class="spacer"></span>
             ${script ? `<button class="btn ghost small" data-act="addscene">+ ${t('studio.addscene')}</button>` : ''}
           </div>
-          <div id="scenes">${script ? script.scenes.map((sc, i) => sceneCard(sc, i)).join('') : `<p class="muted tiny">${t('studio.needscript')}</p>`}</div>
+          <div id="scenes">${script ? script.scenes.map((sc, i) => sceneCard(sc, i)).join('') : `
+            <div class="scenes-empty">
+              <p>This video has no cards yet.</p>
+              <div class="row">
+                <button class="btn primary small" data-act="generate">✍ ${t('studio.makecards')}</button>
+                ${S.boot.ai_configured ? `<button class="btn small" data-act="generate-ai">✦ ${t('studio.makeai')}</button>` : ''}
+                <button class="btn ghost small" data-act="blank">${t('studio.blank')}</button>
+              </div>
+              <p class="tiny muted">Without a key, Reelforge turns the article text into cards itself.</p>
+            </div>`}</div>
         </div>
 
         <div class="card" id="metaCard">
@@ -371,6 +411,77 @@ function renderStudio(view, crumbs, actions) {
   if (S.preview) startPreviewClock();
 }
 
+/* ---- first screen: paste something, get cards, no key required ---- */
+function renderStart(view) {
+  view.innerHTML = `
+    <div class="startwrap">
+      <h1>Make a video from an article</h1>
+      <p class="lead">Paste a link, or the text itself. <b>No AI key needed</b> — Reelforge can build the
+        cards from the article on its own, and you edit anything you don't like.</p>
+      <div class="startcard">
+        <textarea id="startInput" rows="6" placeholder="https://example.com/article&#10;&#10;…or paste the article text here"></textarea>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" data-act="start">Make the cards →</button>
+          <button class="btn" data-act="demo">▶ See a demo video</button>
+          <span class="spacer"></span>
+          <span class="tiny muted">Everything stays on this computer.</span>
+        </div>
+      </div>
+      <div class="startsteps">
+        <div><b>1</b><span>Paste a link or text</span></div>
+        <div><b>2</b><span>Fix anything you want</span></div>
+        <div><b>3</b><span>Press Render — get an mp4</span></div>
+      </div>
+    </div>`;
+}
+
+async function startFromInput(btn) {
+  const raw = ($('#startInput')?.value || '').trim();
+  if (!raw) { $('#startInput')?.focus(); toast('Paste a link or some text first'); return; }
+  const isUrl = /^https?:\/\//i.test(raw);
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = isUrl ? 'Reading the article…' : 'Making the cards…';
+  try {
+    const res = await api('/api/project', isUrl ? { url: raw } : { text: raw });
+    if (!res.ok) throw new Error(res.error);
+    S.project = res.project;
+    const s = await api(`/api/project/${S.project.id}/script`, { mode: 'auto' });
+    if (s.ok) {
+      S.project.script = s.script;
+      S.project.meta = (s.project || {}).meta || S.project.meta;
+      S.project.status = 'script_ready';
+      S.preview = null;
+      render();
+      refreshPreview();
+      toast('Cards ready — change anything you like, then press Render', 'ok');
+    } else {
+      render();
+      toast(s.error || 'Could not build the cards', 'err');
+    }
+  } catch (e) {
+    toast(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+async function loadDemo(btn) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Building the demo…';
+  try {
+    const res = await api('/api/demo');
+    S.project = res.project;
+    S.preview = null;
+    render();
+    refreshPreview();
+    toast('Demo ready — rendering a draft so you can watch it', 'ok');
+    startRender('draft');
+  } catch (e) { toast(e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
 function designSelect(key, items, value, valueKey = 'name') {
   const v = value || 'auto';
   return `<label class="field" style="margin:0"><span>${t('design.' + key) || key}</span>
@@ -406,7 +517,7 @@ function sceneCard(sc, i) {
     <header>
       <span class="n">${i + 1}</span>
       <select data-f="kind" class="kindsel" style="width:auto;padding:2px 22px 2px 8px;height:22px;font-size:11px">
-        ${['fact', 'stat', 'list', 'cta'].map(k => `<option value="${k}" ${kind === k ? 'selected' : ''}>${k}</option>`).join('')}
+        ${['fact', 'stat', 'list', 'cta'].map(k => `<option value="${k}" ${kind === k ? 'selected' : ''}>${t('k.' + k)}</option>`).join('')}
       </select>
       <span class="time">${S.preview && S.preview.scenes && S.preview.scenes[i] ? S.preview.scenes[i].duration + 's' : ''}</span>
       <button class="ghost small" data-act="delscene" title="delete">✕</button>
@@ -414,29 +525,29 @@ function sceneCard(sc, i) {
     <div class="body">
       ${kind === 'stat' ? `
       <div class="three">
-        <label class="field" style="margin:0"><span>${t('studio.kicker')}</span>
+        <label class="field" style="margin:0"><span>${t('f.label')}</span>
           <input type="text" data-f="kicker" value="${esc(sc.kicker || '')}"></label>
-        <label class="field" style="margin:0"><span>${t('studio.num')}</span>
-          <input type="text" data-f="num" value="${esc(sc.num ?? '')}"></label>
-        <label class="field" style="margin:0"><span>${t('studio.unit')}</span>
-          <input type="text" data-f="unit" value="${esc(sc.unit || '')}"></label>
+        <label class="field" style="margin:0"><span>${t('f.num')}</span>
+          <input type="text" data-f="num" value="${esc(sc.num ?? '')}" placeholder="900"></label>
+        <label class="field" style="margin:0"><span>${t('f.unit')}</span>
+          <input type="text" data-f="unit" value="${esc(sc.unit || '')}" placeholder="euros a month"></label>
       </div>` : `
       <div class="two">
-        <label class="field" style="margin:0"><span>${t('studio.kicker')}</span>
-          <input type="text" data-f="kicker" value="${esc(sc.kicker || '')}"></label>
-        <label class="field" style="margin:0"><span>${t('studio.chip')}</span>
-          <input type="text" data-f="chip" value="${esc(sc.chip || '')}"></label>
+        <label class="field" style="margin:0"><span>${t('f.label')}</span>
+          <input type="text" data-f="kicker" value="${esc(sc.kicker || '')}" placeholder="The trap"></label>
+        <label class="field" style="margin:0"><span>${t('f.chip')}</span>
+          <input type="text" data-f="chip" value="${esc(sc.chip || '')}" placeholder="one term extra"></label>
       </div>`}
-      <label class="field" style="margin:0"><span>${t('studio.big')}<i class="fldhint">2 lines · 7 words</i></span>
-        <textarea data-f="big" class="bigtext" rows="2">${esc(big)}</textarea></label>
+      <label class="field" style="margin:0"><span>${t('f.big')}<i class="fldhint">2 short lines</i></span>
+        <textarea data-f="big" class="bigtext" rows="2" placeholder="A cheap course&#10;costs an extra term">${esc(big)}</textarea></label>
       ${kind === 'list'
-        ? `<label class="field" style="margin:0"><span>${t('studio.bullets')}</span>
-             <textarea data-f="bullets" rows="4">${esc((sc.bullets || []).join('\n'))}</textarea></label>`
-        : `<label class="field" style="margin:0"><span>${t('studio.body')}</span>
-             <textarea data-f="body" rows="2">${esc(sc.body || '')}</textarea></label>`}
+        ? `<label class="field" style="margin:0"><span>${t('f.bullets')}</span>
+             <textarea data-f="bullets" rows="4" placeholder="One item per line">${esc((sc.bullets || []).join('\n'))}</textarea></label>`
+        : `<label class="field" style="margin:0"><span>${t('f.body')}</span>
+             <textarea data-f="body" rows="2" placeholder="One sentence that explains the big text.">${esc(sc.body || '')}</textarea></label>`}
       <div class="aimini">
-        <input type="text" placeholder="${esc(t('studio.rewrite'))}" data-ai="${i}">
-        <button class="btn small" data-act="aiscene">✦ ${t('common.apply') || 'Rewrite'}</button>
+        <input type="text" placeholder="${S.boot.ai_configured ? 'Tell the AI what to change on this card' : 'Add an AI key to rewrite this card automatically'}" data-ai="${i}" ${S.boot.ai_configured ? '' : 'disabled'}>
+        <button class="btn small" data-act="aiscene" ${S.boot.ai_configured ? '' : 'disabled'}>✦ ${t('common.apply')}</button>
       </div>
     </div>
   </div>`;
@@ -569,9 +680,15 @@ document.addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-act]');
   if (btn) {
     const act = btn.dataset.act;
-    if (act === 'new') return newProjectDialog();
+    if (act === 'new') return backToStart();
+    if (act === 'start') return startFromInput(btn);
+    if (act === 'demo') return loadDemo(btn);
     if (act === 'fetch') return fetchIntoProject();
-    if (act === 'generate') return generateScript(btn);
+    if (act === 'generate') return generateScript('auto', btn);
+    if (act === 'generate-ai') return generateScript('ai', btn);
+    if (act === 'canceljob') { await api(`/api/project/${S.project.id}/cancel`, {}); toast('Stopping after this frame…'); return; }
+    if (act === 'openout') { await api('/api/open', { path: btn.dataset.path }); return; }
+    if (act === 'openlib') { setView('library'); return; }
     if (act === 'blank') return blankScript();
     if (act === 'preview') return refreshPreview();
     if (act === 'play') return playPreview();
@@ -647,12 +764,13 @@ async function fetchIntoProject() {
   } catch (e) { toast(e.message, 'err'); }
 }
 
-async function generateScript(btn) {
+async function generateScript(mode, btn) {
   if (!S.project) return;
   const brief = ($('#brief')?.value || '').trim();
-  if (btn) { btn.disabled = true; btn.dataset.label = btn.textContent; btn.textContent = t('common.loading'); }
+  const label = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = mode === 'ai' ? 'Writing… this can take a minute' : 'Reading the article…'; }
   try {
-    const res = await api(`/api/project/${S.project.id}/script`, { mode: 'ai', extra: brief });
+    const res = await api(`/api/project/${S.project.id}/script`, { mode, extra: brief });
     if (!res.ok) throw new Error(res.error);
     S.project.script = res.script;
     S.project.meta = (res.project || {}).meta || S.project.meta;
@@ -660,9 +778,9 @@ async function generateScript(btn) {
     render();
     refreshPreview();
     if ((res.warnings || []).length) toast(res.warnings.join(' · '), '');
-    toast('Script ready', 'ok');
+    toast(mode === 'ai' ? 'Script written by the model' : 'Cards built from the article', 'ok');
   } catch (e) { toast(e.message, 'err'); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label || t('studio.generate'); } }
+  finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
 }
 
 async function blankScript() {
@@ -700,12 +818,25 @@ async function startRender(quality) {
   } catch (e) { toast(e.message, 'err'); }
 }
 
+function paintJob(job) {
+  const bar = $('#jobbar');
+  if (!bar) return;
+  if (!job || job.status !== 'running') { bar.hidden = true; return; }
+  bar.hidden = false;
+  const pct = Math.round((job.progress || 0) * 100);
+  const fill = $('#jprog');
+  if (fill) fill.style.width = pct + '%';
+  const msg = $('#jmsg');
+  if (msg) msg.textContent = `${job.message || 'working'} · ${pct}%`;
+}
+
 function watchJob(pid) {
   clearInterval(S.jobTimer);
   S.jobTimer = setInterval(async () => {
     try {
       const res = await api(`/api/project/${pid}/job`);
       const job = res.job;
+      paintJob(job);
       const badge = $('#crumbs .badge');
       if (badge) badge.outerHTML = statusBadge(res.project.status);
       if (job && job.status === 'running') {
@@ -714,6 +845,7 @@ function watchJob(pid) {
         if (b) b.textContent = `▸ ${pct}%`;
       }
       if (!job || job.status !== 'running') {
+        paintJob(job);
         clearInterval(S.jobTimer);
         const b = $('[data-act="render"]');
         if (b) b.textContent = '▸ ' + t('studio.render');
@@ -1027,39 +1159,157 @@ function renderSettings(view, crumbs, actions) {
       <input type="${type}" data-set="${key}" value="${esc(s[key] ?? '')}" ${extra}></label>`;
 
   if (S.settingsTab === 'ai') {
-    const prov = (S.boot.providers || []).find(p => p.name === (s.ai_provider || 'openai')) || {};
+    const presets = S.boot.presets || [];
     body.innerHTML = `
       <div class="card">
-        <h3>${t('settings.ai')}</h3>
-        <p class="hint">${esc(prov.hint || '')}</p>
-        <div class="split" style="grid-template-columns:1fr 1fr">
-          <label class="field"><span>${t('settings.provider')}</span>
-            <select data-set="ai_provider">${(S.boot.providers || []).map(p => `<option value="${p.name}" ${s.ai_provider === p.name ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></label>
-          ${field('ai_model', t('settings.model'), 'text', 'placeholder="gpt-4o-mini"')}
+        <h3>Paste a key — that's the whole setup</h3>
+        <p class="hint">Reelforge reads the key and picks the provider for you. Works with OpenAI, OpenRouter,
+          Groq, DeepSeek, xAI, Mistral, Together, Fireworks, Perplexity, Claude, Gemini, or any endpoint that
+          speaks the OpenAI chat format.</p>
+        <div class="srcbox">
+          <input id="aiKeyPaste" type="password" placeholder="sk-…  ·  sk-ant-…  ·  gsk_…  ·  AIza…">
+          <button class="btn primary small" id="aiDetectBtn">Use this key</button>
         </div>
-        ${field('ai_base_url', t('settings.base'), 'text', 'placeholder="https://api.openai.com/v1"')}
-        <label class="field"><span>${t('settings.key')}</span>
-          <input type="password" data-set="ai_key" value="${esc(s.ai_key_set ? s.ai_key : '')}" placeholder="sk-…">
+        <p class="tiny" id="aiDetectOut" style="min-height:18px;margin:8px 0 0"></p>
+        <hr class="sep">
+        <div class="row">
+          <button class="btn ghost small" id="aiLocalBtn">Find a model on this computer</button>
+          <span class="tiny muted">Ollama, LM Studio, llama.cpp — free, no key needed.</span>
+        </div>
+        <div id="aiLocalOut" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card">
+        <h3>Or set it by hand</h3>
+        <div class="split" style="grid-template-columns:1fr 1fr">
+          <label class="field"><span>Provider</span>
+            <select data-set="ai_provider" id="aiProvider">
+              ${presets.map(p => `<option value="${p.id}" ${s.ai_provider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}
+              <option value="none" ${s.ai_provider === 'none' ? 'selected' : ''}>No AI — build cards from the article</option>
+            </select></label>
+          <label class="field"><span>Model</span>
+            <div class="srcbox">
+              <input type="text" data-set="ai_model" id="aiModel" list="aiModels" value="${esc(s.ai_model || '')}">
+              <button class="btn small" id="aiModelsBtn" title="Ask the endpoint which models it has">List</button>
+            </div>
+            <datalist id="aiModels"></datalist></label>
+        </div>
+        <label class="field"><span>Base URL</span>
+          <input type="text" data-set="ai_base_url" id="aiBase" value="${esc(s.ai_base_url || '')}"
+                 placeholder="https://api.openai.com/v1"></label>
+        <label class="field"><span>API key</span>
+          <input type="password" data-set="ai_key" id="aiKey" value="${esc(s.ai_key_set ? s.ai_key : '')}" placeholder="sk-…">
           <span class="tiny muted">${t('settings.key.hint')}</span></label>
         <div class="split" style="grid-template-columns:1fr 1fr">
           <label class="field"><span>Script language</span>
             <select data-set="ai_language">
               ${['auto', 'fa', 'en', 'de', 'tr', 'ar', 'ru'].map(l => `<option value="${l}" ${s.ai_language === l ? 'selected' : ''}>${l}</option>`).join('')}
             </select></label>
-          <label class="field"><span>temperature</span>
+          <label class="field"><span>Temperature</span>
             <input type="number" step="0.1" min="0" max="1.5" data-set="ai_temperature" value="${esc(s.ai_temperature)}"></label>
         </div>
-        <div class="row"><button class="btn small" data-testai>${t('settings.test')}</button>
-          <span class="tiny muted" id="aiTestOut"></span></div>
+        <div class="row">
+          <button class="btn small" id="aiTestBtn">Test connection</button>
+          <span class="tiny muted" id="aiTestOut"></span>
+        </div>
+        <details style="margin-top:14px">
+          <summary class="tiny muted" style="cursor:pointer">Advanced — extra headers or body fields (Azure, gateways)</summary>
+          <label class="field" style="margin-top:10px"><span>Extra request headers (JSON)</span>
+            <input type="text" data-set="ai_headers" value="${esc(s.ai_headers || '')}"
+                   placeholder='{"api-key": "..."}'></label>
+          <label class="field"><span>Extra body fields (JSON)</span>
+            <input type="text" data-set="ai_extra" value="${esc(s.ai_extra || '')}"
+                   placeholder='{"response_format": {"type": "json_object"}}'></label>
+          <p class="tiny muted">Azure OpenAI: set the base URL to
+            <code class="mono">https://RESOURCE.openai.azure.com/openai/deployments/DEPLOYMENT</code>,
+            the model to the deployment name, and add <code class="mono">{"api-key": "…"}</code> above.</p>
+        </details>
       </div>`;
-    $('[data-testai]').onclick = async () => {
+
+    const setProvider = (preset) => {
+      if (!preset) return;
+      const sel = $('#aiProvider'), model = $('#aiModel'), base = $('#aiBase');
+      if (sel && preset.id) sel.value = preset.id;
+      if (model && preset.model) model.value = preset.model;
+      if (base && preset.base) base.value = preset.base;
+    };
+
+    $('[data-set=ai_provider]').addEventListener('change', (e) => {
+      const preset = presets.find(p => p.id === e.target.value);
+      if (preset && preset.base) { $('#aiBase').value = preset.base; $('#aiModel').value = preset.model; }
+      if (e.target.value === 'none') { $('#aiBase').value = ''; $('#aiModel').value = ''; }
+    });
+
+    $('#aiDetectBtn').onclick = async () => {
+      const key = $('#aiKeyPaste').value.trim();
+      const out = $('#aiDetectOut');
+      if (!key) { $('#aiKeyPaste').focus(); out.textContent = 'Paste the key first.'; return; }
+      out.textContent = 'Checking…'; out.style.color = 'var(--muted)';
+      const res = await api('/api/ai/detect', { key, apply: true });
+      if (res.provider) {
+        const preset = presets.find(p => p.id === res.provider) || { id: res.provider, base: res.base_url, model: res.model };
+        setProvider({ id: res.provider, base: res.base_url || preset.base, model: res.model || preset.model });
+        $('#aiKey').value = key;
+        out.textContent = `Looks like ${res.label || res.provider}.` + (res.note ? ' ' + res.note : '');
+        out.style.color = 'var(--ok)';
+        await saveSettings(true);
+        const test = await api('/api/ai/test', {});
+        out.textContent += test.ok ? ' Connected.' : ' Test failed: ' + (test.error || '');
+        out.style.color = test.ok ? 'var(--ok)' : 'var(--danger)';
+        if (test.ok) { S.boot.ai_configured = true; toast('AI connected', 'ok'); }
+      } else {
+        out.textContent = res.note || 'Could not identify that key — set the provider by hand below.';
+        out.style.color = 'var(--warn)';
+      }
+    };
+
+    $('#aiModelsBtn').onclick = async () => {
+      const btn = $('#aiModelsBtn');
+      btn.disabled = true; btn.textContent = '…';
+      const res = await api('/api/ai/models', { base_url: $('#aiBase').value, provider: $('#aiProvider').value });
+      btn.disabled = false; btn.textContent = 'List';
+      const list = $('#aiModels');
+      list.innerHTML = (res.models || []).map(m => `<option value="${esc(m)}"></option>`).join('');
+      if ((res.models || []).length) {
+        toast(`${res.models.length} models found — start typing to pick one`, 'ok');
+        if (!$('#aiModel').value) $('#aiModel').value = res.models[0];
+      } else toast(res.error || 'No model list from that endpoint', 'err');
+    };
+
+    $('#aiLocalBtn').onclick = async () => {
+      const out = $('#aiLocalOut');
+      out.innerHTML = '<span class="tiny muted">Looking…</span>';
+      const res = await api('/api/ai/local');
+      if (!res.ok) { out.innerHTML = `<span class="tiny muted">${esc(res.hint || '')}</span>`; return; }
+      out.innerHTML = res.servers.map((sv, i) => `
+        <div class="row" style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px">
+          <b class="tiny">${esc(sv.label)}</b>
+          <span class="tiny muted mono">${esc(sv.base_url)}</span>
+          <span class="spacer"></span>
+          <select class="tiny" data-local-models="${i}" style="width:auto;max-width:220px;padding:4px 8px">
+            ${sv.models.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}
+          </select>
+          <button class="btn small" data-local-use="${i}">Use</button>
+        </div>`).join('');
+      out.querySelectorAll('[data-local-use]').forEach(b => b.onclick = async () => {
+        const sv = res.servers[+b.dataset.localUse];
+        const sel = out.querySelector(`[data-local-models="${b.dataset.localUse}"]`);
+        setProvider({ id: sv.provider, base: sv.base_url, model: sel.value });
+        await saveSettings(true);
+        S.boot.ai_configured = true;
+        toast(`${sv.label} connected`, 'ok');
+        render();
+      });
+    };
+
+    $('#aiTestBtn').onclick = async () => {
       const out = $('#aiTestOut');
-      out.textContent = t('common.loading');
-      const payload = { provider: $('[data-set=ai_provider]').value, model: $('[data-set=ai_model]').value,
-                        base_url: $('[data-set=ai_base_url]').value, key: $('[data-set=ai_key]').value };
-      const res = await api('/api/ai/test', payload);
+      out.textContent = t('common.loading'); out.style.color = 'var(--muted)';
+      await saveSettings(true);
+      const res = await api('/api/ai/test', {});
       out.textContent = res.ok ? '✓ connected — ' + (res.reply || '') : '✗ ' + (res.error || 'failed');
       out.style.color = res.ok ? 'var(--ok)' : 'var(--danger)';
+      if (res.ok) S.boot.ai_configured = true;
     };
   } else if (S.settingsTab === 'brand') {
     body.innerHTML = `
@@ -1107,6 +1357,12 @@ function renderSettings(view, crumbs, actions) {
           .map(([k, label]) => `<label class="switch" style="display:flex;margin-bottom:14px">
             <input type="checkbox" data-set="${k}" ${s[k] ? 'checked' : ''}><i></i><span>${label}</span></label>`).join('')}
         <hr class="sep">
+        <label class="field"><span>How cards get written</span>
+          <select data-set="script_mode">
+            <option value="auto" ${s.script_mode === 'auto' ? 'selected' : ''}>Use the AI if a key is set, otherwise build them from the article</option>
+            <option value="ai" ${s.script_mode === 'ai' ? 'selected' : ''}>Always use the AI</option>
+            <option value="manual" ${s.script_mode === 'manual' ? 'selected' : ''}>Never write automatically — I write them</option>
+          </select></label>
         <label class="field"><span>${t('design.title')} default</span>
           <select data-set="default_design_mode">
             <option value="auto" ${s.default_design_mode === 'auto' ? 'selected' : ''}>auto — vary every video</option>
@@ -1163,7 +1419,7 @@ function renderSettings(view, crumbs, actions) {
   $('[data-savesettings]')?.addEventListener('click', saveSettings);
 }
 
-async function saveSettings() {
+async function saveSettings(quiet) {
   const payload = {};
   $$('[data-set]').forEach(el => {
     if (el.type === 'checkbox') payload[el.dataset.set] = el.checked;
@@ -1173,76 +1429,151 @@ async function saveSettings() {
   try {
     const res = await api('/api/settings', payload);
     S.settings = res.settings;
+    if (payload.ai_provider) S.boot.ai_configured = payload.ai_provider !== 'none';
     if (payload.ui_lang && payload.ui_lang !== S.lang) { S.lang = payload.ui_lang; applyLang(); }
-    toast(t('settings.saved'), 'ok');
+    if (!quiet) toast(t('settings.saved'), 'ok');
+    return res;
   } catch (e) { toast(e.message, 'err'); }
 }
 
 /* ------------------------------------------------------------------ onboarding */
 function onboarding(force) {
-  let step = 0;
-  const renderStep = () => {
-    if (step === 0) {
-      modal(`
-        <h2>Welcome to Reelforge</h2>
-        <p>Turn an article, a link or a paragraph into a finished vertical short video. You bring the AI key (or write the script yourself) — everything runs on this computer.</p>
-        <label class="field"><span>Brand name</span>
-          <input id="obName" value="${esc(['', 'Reelforge'].includes(S.settings.brand_name) ? '' : S.settings.brand_name)}" placeholder="Acme Studio"></label>
-        <label class="field"><span>Site or handle printed on every card</span>
-          <input id="obSite" value="${esc(['', 'example.com'].includes(S.settings.brand_site) ? '' : S.settings.brand_site)}" placeholder="acme.studio">
-          <span class="tiny muted">Both are optional — you can change them later in Settings → Brand.</span></label>
-        <div class="foot">
-          <button class="btn ghost" data-skip>Skip</button>
-          <button class="btn primary" data-next>Continue</button>
-        </div>`, root => {
-        root.querySelector('[data-skip]').onclick = finishOnboarding;
-        root.querySelector('[data-next]').onclick = async () => {
-          const brand_name = root.querySelector('#obName').value.trim();
-          const brand_site = root.querySelector('#obSite').value.trim();
-          if (brand_name || brand_site) {
-            const res = await api('/api/settings', { brand_name, brand_site, brand_latin: (brand_site || brand_name).toUpperCase() });
-            S.settings = res.settings;
-          }
-          step = 1; renderStep();
-        };
-      });
-    } else {
-      modal(`
-        <h2>Connect an AI</h2>
-        <p>Any OpenAI-compatible endpoint works — OpenAI, OpenRouter, Groq, DeepSeek, or a local Ollama. You can also skip this and write scripts by hand.</p>
-        <div class="split" style="grid-template-columns:1fr 1fr">
-          <label class="field"><span>Provider</span>
-            <select id="obProv">${(S.boot.providers || []).filter(p => p.name !== 'none').map(p => `<option value="${p.name}">${esc(p.label)}</option>`).join('')}</select></label>
-          <label class="field"><span>Model</span><input id="obModel" value="${esc(S.settings.ai_model || 'gpt-4o-mini')}"></label>
-        </div>
-        <label class="field"><span>Base URL</span><input id="obBase" value="${esc(S.settings.ai_base_url || 'https://api.openai.com/v1')}"></label>
-        <label class="field"><span>API key</span><input id="obKey" type="password" placeholder="sk-…"></label>
-        <div class="foot">
-          <button class="btn ghost" data-skip>Write by hand</button>
-          <button class="btn primary" data-finish>Finish</button>
-        </div>`, root => {
-        root.querySelector('[data-skip]').onclick = finishOnboarding;
-        root.querySelector('[data-finish]').onclick = async () => {
-          const ai_provider = root.querySelector('#obProv').value;
-          const ai_model = root.querySelector('#obModel').value.trim();
-          const ai_base_url = root.querySelector('#obBase').value.trim();
-          const ai_key = root.querySelector('#obKey').value.trim();
-          const res = await api('/api/settings', { ai_provider, ai_model, ai_base_url, ai_key });
-          S.settings = res.settings;
-          finishOnboarding();
-        };
-      });
-    }
-  };
-  const finishOnboarding = async () => {
-    await api('/api/settings', { onboarded: true });
+  const finishOnboarding = async (extra = {}) => {
+    await api('/api/settings', { onboarded: true, ...extra });
     S.settings.onboarded = true;
     closeModal();
-    boot2();
+    S.boot = await api('/api/bootstrap');
+    S.settings = S.boot.settings;
+    render();
   };
-  const boot2 = async () => { S.boot = await api('/api/bootstrap'); S.settings = S.boot.settings; render(); };
-  renderStep();
-}
 
+  const stepBrand = () => {
+    modal(`
+      <h2>Welcome to Reelforge</h2>
+      <p>Turn an article, a link or a paragraph into a finished vertical short video.
+         Everything runs on this computer — nothing is uploaded.</p>
+      <label class="field"><span>Brand name <i class="fldhint">printed on the cards</i></span>
+        <input id="obName" value="${esc(['', 'Reelforge'].includes(S.settings.brand_name) ? '' : S.settings.brand_name)}" placeholder="Acme Studio"></label>
+      <label class="field"><span>Site or handle</span>
+        <input id="obSite" value="${esc(['', 'example.com'].includes(S.settings.brand_site) ? '' : S.settings.brand_site)}" placeholder="acme.studio">
+        <span class="tiny muted">Optional. You can change both later in Settings → Brand.</span></label>
+      <div class="foot">
+        <button class="btn ghost" data-skip>Skip</button>
+        <button class="btn primary" data-next>Continue</button>
+      </div>`, root => {
+      root.querySelector('[data-skip]').onclick = () => finishOnboarding();
+      root.querySelector('[data-next]').onclick = async () => {
+        const brand_name = root.querySelector('#obName').value.trim();
+        const brand_site = root.querySelector('#obSite').value.trim();
+        const payload = {};
+        if (brand_name) { payload.brand_name = brand_name; payload.brand_latin = brand_name.toUpperCase().slice(0, 22); }
+        if (brand_site) payload.brand_site = brand_site.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        if (Object.keys(payload).length) {
+          const res = await api('/api/settings', payload);
+          S.settings = res.settings;
+        }
+        stepScript();
+      };
+    });
+  };
+
+  const stepScript = () => {
+    modal(`
+      <h2>How should the cards be written?</h2>
+      <p>You can change this at any time — nothing here is permanent.</p>
+      <div class="choices">
+        <button class="choice" data-choice="auto">
+          <b>From the article itself</b>
+          <span>No key, no cost, instant. Reelforge pulls the sentences and the numbers out of the page and
+            builds the cards. You edit anything you don't like.</span>
+          <i>Recommended</i>
+        </button>
+        <button class="choice" data-choice="ai">
+          <b>With an AI model</b>
+          <span>Paste one key — OpenAI, OpenRouter, Groq, DeepSeek, Claude, Gemini, or a free local model.
+            Better headlines, better order.</span>
+        </button>
+        <button class="choice" data-choice="manual">
+          <b>I'll write them myself</b>
+          <span>Start with empty cards and type your own words.</span>
+        </button>
+      </div>
+      <div class="foot"><button class="btn ghost" data-back>Back</button></div>`, root => {
+      root.querySelector('[data-back]').onclick = stepBrand;
+      root.querySelectorAll('[data-choice]').forEach(b => b.onclick = async () => {
+        if (b.dataset.choice === 'auto') return finishOnboarding({ ai_provider: 'none', script_mode: 'auto' });
+        if (b.dataset.choice === 'manual') return finishOnboarding({ ai_provider: 'none', script_mode: 'manual' });
+        stepAi();
+      });
+    });
+  };
+
+  const stepAi = () => {
+    modal(`
+      <h2>Paste your API key</h2>
+      <p>Reelforge works out which service it belongs to and sets everything up. The key is encrypted on this
+         machine with Windows DPAPI and only sent to the provider you chose.</p>
+      <div class="srcbox">
+        <input id="obKey" type="password" placeholder="sk-…  ·  sk-ant-…  ·  gsk_…  ·  AIza…">
+        <button class="btn primary" id="obUse">Use this key</button>
+      </div>
+      <p class="tiny" id="obOut" style="min-height:20px;margin:10px 0 0"></p>
+      <hr class="sep">
+      <div class="row">
+        <button class="btn ghost small" id="obLocal">Find a free model on this computer</button>
+        <span class="spacer"></span>
+        <button class="btn ghost small" data-skip>Skip — use the article instead</button>
+      </div>
+      <div id="obLocalOut"></div>
+      <div class="foot"><button class="btn ghost" data-back>Back</button></div>`, root => {
+      const out = root.querySelector('#obOut');
+      root.querySelector('[data-back]').onclick = stepScript;
+      root.querySelector('[data-skip]').onclick = () => finishOnboarding({ ai_provider: 'none', script_mode: 'auto' });
+      root.querySelector('#obUse').onclick = async () => {
+        const key = root.querySelector('#obKey').value.trim();
+        if (!key) { root.querySelector('#obKey').focus(); return; }
+        out.textContent = 'Checking the key…'; out.style.color = 'var(--muted)';
+        const res = await api('/api/ai/detect', { key, apply: true });
+        if (!res.provider) {
+          out.textContent = res.note || 'Could not identify that key.';
+          out.style.color = 'var(--warn)';
+          return;
+        }
+        const test = await api('/api/ai/test', {});
+        out.textContent = test.ok
+          ? `Connected to ${res.label || res.provider}. You're ready.`
+          : `Saved as ${res.label || res.provider}, but the test failed: ${test.error || ''}. You can fix it in Settings → AI.`;
+        out.style.color = test.ok ? 'var(--ok)' : 'var(--danger)';
+        if (test.ok) setTimeout(() => finishOnboarding({ ai_provider: res.provider, script_mode: 'ai' }), 900);
+      };
+      root.querySelector('#obLocal').onclick = async () => {
+        const box = root.querySelector('#obLocalOut');
+        box.innerHTML = '<p class="tiny muted">Looking…</p>';
+        const res = await api('/api/ai/local');
+        if (!res.ok) { box.innerHTML = `<p class="tiny muted">${esc(res.hint || '')}</p>`; return; }
+        box.innerHTML = res.servers.map((sv, i) => `
+          <div class="row" style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px">
+            <b class="tiny">${esc(sv.label)}</b>
+            <span class="spacer"></span>
+            <select data-m="${i}" style="width:auto;max-width:220px;padding:5px 8px;font-size:12px">
+              ${sv.models.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}
+            </select>
+            <button class="btn small" data-use="${i}">Use</button>
+          </div>`).join('');
+        box.querySelectorAll('[data-use]').forEach(btn => btn.onclick = async () => {
+          const sv = res.servers[+btn.dataset.use];
+          const model = box.querySelector(`[data-m="${btn.dataset.use}"]`).value;
+          await api('/api/settings', { ai_provider: sv.provider, ai_base_url: sv.base_url, ai_model: model });
+          const test = await api('/api/ai/test', {});
+          out.textContent = test.ok ? `${sv.label} connected (${model}).` : `Saved, but the test failed: ${test.error || ''}`;
+          out.style.color = test.ok ? 'var(--ok)' : 'var(--danger)';
+          if (test.ok) setTimeout(() => finishOnboarding({ ai_provider: sv.provider, script_mode: 'ai' }), 900);
+        });
+      };
+    });
+  };
+
+  stepBrand();
+}
 /* ------------------------------------------------------------------ start */
 boot();

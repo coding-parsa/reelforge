@@ -442,6 +442,8 @@ def compose(spec: dict, design: dict, brand: dict, *, project_dir: Path, seed: s
         bg = "photo" if photo else "gradient"
     if bg == "split" and not assets["broll"]:
         bg = "photo" if photo else "duotone"
+    if bg == "photo" and not photo:
+        bg = "gradient"
     if bg in ("photo", "duotone", "split") and not assets["broll"] and not photo:
         bg = "gradient"
 

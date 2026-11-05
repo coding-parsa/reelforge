@@ -32,10 +32,17 @@ def app_root() -> Path:
 
 
 def bundled_dir() -> Path:
-    """Read-only files shipped with the program (fonts, logo, web UI, gsap)."""
+    """Read-only program files (the web UI lives here)."""
     if is_frozen():
         return Path(getattr(sys, "_MEIPASS", app_root()))
     return Path(__file__).resolve().parent
+
+
+def bundled_assets_dir() -> Path:
+    """Read-only media shipped with the program: fonts, sfx, starter b-roll and pads."""
+    if is_frozen():
+        return Path(getattr(sys, "_MEIPASS", app_root())) / "assets"
+    return app_root() / "assets"
 
 
 def home_dir() -> Path:
@@ -92,7 +99,7 @@ def asset(*parts: str) -> Path:
     user = assets_dir() / rel
     if user.exists():
         return user
-    return bundled_dir() / "assets" / rel
+    return bundled_assets_dir() / rel
 
 
 def db_path() -> Path:
@@ -157,7 +164,15 @@ def ensure_home() -> None:
                 path.write_text(text, encoding="utf-8")
             except OSError:
                 pass
-    # starter hooks live in the repo / bundle; copy them once
+    # starter media and hooks live in the repo / bundle; copy them once
+    for sub in ("broll", "music"):
+        src = bundled_assets_dir() / sub
+        dest = assets / sub
+        if src.is_dir() and not any(dest.glob("*.*")):
+            import shutil
+            for f in src.iterdir():
+                if f.is_file():
+                    shutil.copy2(f, dest / f.name)
     src = bundled_dir() / "hooks" / "examples"
     if src.is_dir():
         dest = hooks / "examples"

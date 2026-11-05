@@ -66,10 +66,12 @@ DEFAULTS: dict[str, Any] = {
     "ai_temperature": 0.7,
     "ai_language": "auto",            # auto | fa | en | de | tr | ar | ru
     "ai_extra": "",                   # extra JSON merged into the request body
+    "ai_headers": "",                 # extra JSON headers (Azure: {"api-key": "..."} / gateways)
     "prompt_script": "",             # empty = the built-in template in ai.py
     "prompt_meta": "",
     # ---- automation ----
-    "auto_generate": True,            # queue: write the script with AI when missing
+    "auto_generate": True,            # queue: write the script when missing
+    "script_mode": "auto",            # auto (AI if configured, else the article) | ai | manual
     "auto_render": True,              # queue: render right after the script exists
     "review_gate": False,             # queue: stop at "needs review" instead of rendering
     "default_design_mode": "auto",    # auto (varied) | fixed

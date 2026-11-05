@@ -21,16 +21,74 @@ from . import secrets as _secrets
 from . import store
 
 MAX_ARTICLE_CHARS = 14000
-PROVIDERS = {
-    "openai": {"label": "OpenAI-compatible", "default_base": "https://api.openai.com/v1",
-               "hint": "Works with OpenAI, OpenRouter, Groq, DeepSeek, xAI, Together, Mistral, "
-                       "Ollama, LM Studio, vLLM — anything that speaks /chat/completions."},
-    "anthropic": {"label": "Anthropic", "default_base": "https://api.anthropic.com",
-                  "hint": "Claude models (claude-3-5-sonnet-latest, claude-3-5-haiku-latest…)."},
-    "gemini": {"label": "Google Gemini", "default_base": "https://generativelanguage.googleapis.com/v1beta",
-               "hint": "gemini-2.0-flash, gemini-1.5-pro…"},
-    "none": {"label": "No AI (write or script it yourself)", "default_base": "", "hint": ""},
-}
+
+# Every preset is just "base URL + model + which wire format". Any other endpoint
+# that speaks one of the three formats works by choosing "Custom".
+PROVIDER_PRESETS: list[dict] = [
+    {"id": "openai", "label": "OpenAI", "base": "https://api.openai.com/v1", "model": "gpt-4o-mini",
+     "models": ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"], "key_hint": "sk-…", "key": True},
+    {"id": "openrouter", "label": "OpenRouter (300+ models, one key)", "base": "https://openrouter.ai/api/v1",
+     "model": "openai/gpt-4o-mini",
+     "models": ["openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet", "google/gemini-flash-1.5",
+                "meta-llama/llama-3.3-70b-instruct", "deepseek/deepseek-chat"], "key_hint": "sk-or-v1-…", "key": True},
+    {"id": "groq", "label": "Groq (very fast, free tier)", "base": "https://api.groq.com/openai/v1",
+     "model": "llama-3.3-70b-versatile",
+     "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"], "key_hint": "gsk_…", "key": True},
+    {"id": "deepseek", "label": "DeepSeek", "base": "https://api.deepseek.com/v1", "model": "deepseek-chat",
+     "models": ["deepseek-chat", "deepseek-reasoner"], "key_hint": "sk-…", "key": True},
+    {"id": "xai", "label": "xAI Grok", "base": "https://api.x.ai/v1", "model": "grok-2-latest",
+     "models": ["grok-2-latest", "grok-beta"], "key_hint": "xai-…", "key": True},
+    {"id": "mistral", "label": "Mistral", "base": "https://api.mistral.ai/v1", "model": "mistral-large-latest",
+     "models": ["mistral-large-latest", "mistral-small-latest"], "key_hint": "…", "key": True},
+    {"id": "together", "label": "Together AI", "base": "https://api.together.xyz/v1",
+     "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+     "models": ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
+     "key_hint": "…", "key": True},
+    {"id": "fireworks", "label": "Fireworks AI", "base": "https://api.fireworks.ai/inference/v1",
+     "model": "accounts/fireworks/models/llama-v3p3-70b-instruct", "models": [], "key_hint": "…", "key": True},
+    {"id": "perplexity", "label": "Perplexity", "base": "https://api.perplexity.ai",
+     "model": "sonar", "models": ["sonar", "sonar-pro"], "key_hint": "pplx-…", "key": True},
+    {"id": "anthropic", "label": "Anthropic Claude", "base": "https://api.anthropic.com",
+     "model": "claude-3-5-sonnet-latest",
+     "models": ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"],
+     "key_hint": "sk-ant-…", "key": True},
+    {"id": "gemini", "label": "Google Gemini", "base": "https://generativelanguage.googleapis.com/v1beta",
+     "model": "gemini-2.0-flash", "models": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+     "key_hint": "AIza…", "key": True},
+    {"id": "ollama", "label": "Ollama (this computer, free)", "base": "http://127.0.0.1:11434/v1",
+     "model": "llama3.1", "models": [], "key_hint": "no key", "key": False},
+    {"id": "lmstudio", "label": "LM Studio (this computer, free)", "base": "http://127.0.0.1:1234/v1",
+     "model": "local-model", "models": [], "key_hint": "no key", "key": False},
+    {"id": "llamacpp", "label": "llama.cpp server (this computer, free)", "base": "http://127.0.0.1:8080/v1",
+     "model": "local", "models": [], "key_hint": "no key", "key": False},
+    {"id": "custom", "label": "Custom endpoint (any OpenAI-compatible API)", "base": "",
+     "model": "", "models": [], "key_hint": "whatever it needs", "key": True},
+]
+
+KEY_PREFIXES = [
+    ("sk-ant-", "anthropic", "https://api.anthropic.com", "claude-3-5-sonnet-latest"),
+    ("sk-or-v1-", "openrouter", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"),
+    ("sk-or-", "openrouter", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"),
+    ("gsk_", "groq", "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+    ("xai-", "xai", "https://api.x.ai/v1", "grok-2-latest"),
+    ("pplx-", "perplexity", "https://api.perplexity.ai", "sonar"),
+    ("AIza", "gemini", "https://generativelanguage.googleapis.com/v1beta", "gemini-2.0-flash"),
+    ("sk-proj-", "openai", "https://api.openai.com/v1", "gpt-4o-mini"),
+    ("sk-", "openai", "https://api.openai.com/v1", "gpt-4o-mini"),
+]
+
+LOCAL_ENDPOINTS = [
+    ("Ollama", "http://127.0.0.1:11434/v1"),
+    ("LM Studio", "http://127.0.0.1:1234/v1"),
+    ("llama.cpp server", "http://127.0.0.1:8080/v1"),
+    ("vLLM / other", "http://127.0.0.1:8000/v1"),
+    ("text-generation-webui", "http://127.0.0.1:5000/v1"),
+]
+
+PROVIDERS = {p["id"]: {"label": p["label"], "default_base": p["base"], "hint": p["key_hint"]}
+             for p in PROVIDER_PRESETS}
+PROVIDERS["none"] = {"label": "No AI (write or script it yourself)", "default_base": "", "hint": ""}
+PROVIDERS["openai-compatible"] = PROVIDERS["openai"]
 
 DEFAULT_SCRIPT_PROMPT = """You write scripts for silent vertical short videos (Reels / Shorts / TikTok).
 A card on screen must be readable in the time a scene lasts, so every word has to earn its place.
@@ -160,6 +218,14 @@ def chat(messages: list[dict], *, temperature: float | None = None, max_tokens: 
         except Exception:
             pass
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    if not key:                      # local servers do not need (or want) a bearer header
+        headers.pop("Authorization", None)
+    extra_headers = (store.get_setting("ai_headers") or "").strip()
+    if extra_headers:
+        try:
+            headers.update({str(k): str(v) for k, v in json.loads(extra_headers).items()})
+        except Exception:
+            pass
     resp = requests.post(url, json=body, headers=headers, timeout=timeout)
     if resp.status_code >= 400:
         raise AIError(_http_error("provider", resp))
@@ -187,6 +253,84 @@ def _http_error(name: str, resp) -> str:
 def test_connection() -> dict:
     out = chat([{"role": "user", "content": "Reply with the single word: ok"}], temperature=0, max_tokens=16)
     return {"ok": True, "reply": (out or "").strip()[:80]}
+
+
+def detect_provider(key: str) -> dict:
+    """Guess the provider from the key itself, so 'paste a key' is the whole setup."""
+    k = (key or "").strip()
+    for prefix, provider, base, model in KEY_PREFIXES:
+        if k.startswith(prefix):
+            preset = next((p for p in PROVIDER_PRESETS if p["id"] == provider), {})
+            note = ""
+            if provider == "openai" and k.startswith("sk-") and not k.startswith("sk-proj-"):
+                note = ("Some other services also start with sk- (DeepSeek, Moonshot…). "
+                        "If the test fails, pick that provider in the list.")
+            return {"provider": provider, "base_url": base, "model": model,
+                    "label": preset.get("label", provider), "note": note, "confident": True}
+    return {"provider": "custom", "base_url": "", "model": "", "confident": False,
+            "note": "That key does not match a known service. Choose the provider below, or paste the "
+                    "endpoint's base URL (it must speak the OpenAI chat format)."}
+
+
+def list_models(base: str | None = None, key: str | None = None, provider: str | None = None,
+                timeout: int = 20) -> list[str]:
+    """Ask the endpoint what models it has — no more typing model names from memory."""
+    provider = (provider or store.get_setting("ai_provider") or "openai").lower()
+    base = (base or store.get_setting("ai_base_url") or "").rstrip("/")
+    key = key if key is not None else _secrets.unprotect(store.get_setting("ai_key") or "")
+    try:
+        if provider == "gemini":
+            root = base or PROVIDERS["gemini"]["default_base"]
+            r = requests.get(f"{root}/models?key={key}", timeout=timeout)
+        elif provider == "anthropic":
+            root = base or "https://api.anthropic.com"
+            r = requests.get(f"{root}/v1/models", timeout=timeout,
+                             headers={"x-api-key": key, "anthropic-version": "2023-06-01"})
+        else:
+            root = base or PROVIDERS["openai"]["default_base"]
+            r = requests.get(f"{root}/models", timeout=timeout,
+                             headers={"Authorization": f"Bearer {key}"} if key else {})
+        if r.status_code >= 400:
+            return []
+        data = r.json()
+        items = data.get("data") or data.get("models") or []
+        out = []
+        for item in items:
+            if isinstance(item, str):
+                out.append(item)
+            elif isinstance(item, dict):
+                name = item.get("id") or item.get("name") or item.get("model")
+                if name:
+                    out.append(str(name).replace("models/", ""))
+        return sorted({m for m in out if m})[:300]
+    except Exception:
+        return []
+
+
+def find_local_models() -> list[dict]:
+    """Look for model servers already running on this machine (no key, no cost)."""
+    found = []
+    for label, base in LOCAL_ENDPOINTS:
+        try:
+            r = requests.get(f"{base}/models", timeout=0.8)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            items = data.get("data") or data.get("models") or []
+            models = []
+            for item in items:
+                if isinstance(item, str):
+                    models.append(item)
+                elif isinstance(item, dict):
+                    name = item.get("id") or item.get("name") or item.get("model")
+                    if name:
+                        models.append(str(name))
+            if models:
+                preset_id = {"Ollama": "ollama", "LM Studio": "lmstudio", "llama.cpp server": "llamacpp"}.get(label, "custom")
+                found.append({"label": label, "base_url": base, "provider": preset_id, "models": models[:80]})
+        except Exception:
+            continue
+    return found
 
 
 # ---------------------------------------------------------------- JSON

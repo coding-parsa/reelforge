@@ -91,7 +91,7 @@ def clip_duration(path: Path) -> float:
 
 def _files(sub: str, exts: tuple[str, ...]) -> list[Path]:
     out: list[Path] = []
-    for base in (paths.assets_dir() / sub, paths.bundled_dir() / "assets" / sub):
+    for base in (paths.assets_dir() / sub, paths.bundled_assets_dir() / sub):
         if base.is_dir():
             out += [p for p in sorted(base.iterdir()) if p.is_file() and p.suffix.lower() in exts]
     # de-duplicate by name, user pool wins

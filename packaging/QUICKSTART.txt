@@ -1,13 +1,14 @@
-Reelforge 1.0.0 — quick start
+Reelforge 1.1.0 — quick start
 =============================
 
 1. Double-click Reelforge.exe
-2. Paste an article URL (or some text) and press "Write the script"
-   — you need an API key first: Settings → AI (OpenAI, OpenRouter, Groq,
-     DeepSeek, Anthropic, Gemini, or a local Ollama).
-   No key? Press "Start from scratch" and write the cards yourself.
+2. Paste an article link (or the text itself) and press "Make the cards".
+   No API key needed — the cards are built from the article text itself.
+   Want better copy? Settings → AI: paste any key and press "Use this key"
+   (OpenAI, OpenRouter, Groq, DeepSeek, Claude, Gemini, xAI, Mistral,
+   Perplexity, or a free local model — it detects the provider for you).
 3. Check the cards, watch the preview on the right, press "Render video".
-4. The mp4 lands in the Library tab — download it from there.
+4. The video appears right there and in the Library tab — download it.
 
 Requirements
 ------------
@@ -15,12 +16,15 @@ Requirements
   this exe). Quickest:  winget install Gyan.FFmpeg
 * Edge (already on Windows) or Chrome — the renderer drives it headless.
 
+In a hurry? Press "See a demo video" on the first screen and watch the whole
+pipeline run on a sample article.
+
 Where your data lives
 ---------------------
 %LOCALAPPDATA%\Reelforge
   projects\   the composed page of every video
   out\        finished mp4 + cover
-  assets\     drop b-roll clips, music, a logo here
+  assets\     b-roll, music, your logo (starter clips are already there)
   hooks\      your own Python/JS code in the pipeline
   themes\     drop-in theme packs
 

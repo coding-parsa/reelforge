@@ -298,6 +298,41 @@ html[dir=rtl] .switch input:checked + i::after { transform: translateX(-17px); }
 @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
 .boottext { color: var(--dim); font-size: 11.5px; }
 
+/* ---- first-run start screen ---- */
+.startwrap { max-width: 780px; margin: 3vh auto 0; }
+.startwrap h1 { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 8px; }
+.startwrap .lead { color: var(--muted); font-size: 14.5px; line-height: 1.7; margin: 0 0 20px; max-width: 62ch; }
+.startcard { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
+.startcard textarea { min-height: 158px; font-size: 14px; }
+.startsteps { display: flex; gap: 22px; margin-top: 26px; color: var(--muted); font-size: 12.5px; flex-wrap: wrap; }
+.startsteps > div { display: flex; align-items: center; gap: 8px; }
+.startsteps b { width: 21px; height: 21px; border-radius: 50%; background: var(--panel3); color: var(--accent);
+  display: grid; place-items: center; font-size: 11px; }
+
+/* ---- render progress ---- */
+.jobbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin-bottom: 14px;
+  background: var(--panel); border: 1px solid rgba(240,194,107,.35); border-radius: 12px; }
+.jobbar .jprog { flex: 1; height: 6px; border-radius: 6px; background: #1b2230; overflow: hidden; }
+.jobbar .jprog i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s ease; }
+.jobbar .jmsg { font-size: 12px; color: var(--muted); min-width: 190px; }
+
+/* ---- result card ---- */
+.resultcard { border-color: rgba(120,224,164,.35); }
+.resultcard video { width: 100%; max-height: 430px; border-radius: 10px; background: #000; display: block; }
+
+.scenes-empty { text-align: center; padding: 24px 12px; color: var(--muted); font-size: 13px; }
+.scenes-empty .row { justify-content: center; margin: 12px 0; }
+
+/* ---- onboarding choices ---- */
+.choices { display: flex; flex-direction: column; gap: 10px; }
+.choice { text-align: start; background: var(--panel2); border: 1px solid var(--line2); border-radius: 12px;
+  padding: 14px 16px; cursor: pointer; color: var(--ink); font: inherit; position: relative; }
+.choice:hover { border-color: var(--accent); background: var(--panel3); }
+.choice b { display: block; font-size: 14px; margin-bottom: 4px; }
+.choice span { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.choice i { position: absolute; inset-inline-end: 14px; top: 14px; font-style: normal; font-size: 10.5px;
+  color: var(--accent); border: 1px solid rgba(240,194,107,.4); border-radius: 999px; padding: 2px 8px; }
+
 .empty-state { text-align: center; padding: 70px 20px; color: var(--muted); }
 .empty-state h2 { color: var(--ink); font-size: 17px; margin: 0 0 6px; }
 .empty-state .btn { margin-top: 14px; }
