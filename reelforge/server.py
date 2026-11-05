@@ -43,6 +43,16 @@ def _guard(request: Request) -> None:
             raise HTTPException(403, "missing app header")
 
 
+def _ai_ready() -> bool:
+    """A provider is only usable if it can authenticate: a key, or a local server."""
+    provider = (store.get_setting("ai_provider") or "none").lower()
+    if provider in ("none", ""):
+        return False
+    if provider in ("ollama", "lmstudio", "llamacpp"):
+        return True
+    return bool(secrets.unprotect(store.get_setting("ai_key") or ""))
+
+
 def public_settings() -> dict:
     s = store.all_settings()
     s["ai_key"] = secrets.mask(s.get("ai_key") or "")
@@ -139,7 +149,7 @@ def bootstrap() -> dict:
         "queue": jobs.status(),
         "providers": [{"name": k, **v} for k, v in ai.PROVIDERS.items()],
         "presets": ai.PROVIDER_PRESETS,
-        "ai_configured": (store.get_setting("ai_provider") or "none") not in ("none", ""),
+        "ai_configured": _ai_ready(),
         "prompts": {"script": ai.DEFAULT_SCRIPT_PROMPT, "meta": ai.DEFAULT_META_PROMPT},
         "platform": {"os": sys.platform, "frozen": paths.is_frozen(), "home": str(paths.home_dir())},
     }

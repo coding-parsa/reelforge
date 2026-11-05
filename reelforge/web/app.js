@@ -1429,7 +1429,9 @@ async function saveSettings(quiet) {
   try {
     const res = await api('/api/settings', payload);
     S.settings = res.settings;
-    if (payload.ai_provider) S.boot.ai_configured = payload.ai_provider !== 'none';
+    const prov = res.settings.ai_provider || 'none';
+    S.boot.ai_configured = ['none', ''].includes(prov) ? false
+      : (['ollama', 'lmstudio', 'llamacpp'].includes(prov) || !!res.settings.ai_key_set);
     if (payload.ui_lang && payload.ui_lang !== S.lang) { S.lang = payload.ui_lang; applyLang(); }
     if (!quiet) toast(t('settings.saved'), 'ok');
     return res;
