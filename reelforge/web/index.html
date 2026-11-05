@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reelforge</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<div id="app" class="app">
+
+  <!-- ---------------------------------------------------------- rail -->
+  <aside class="rail">
+    <div class="brandmark" title="Reelforge">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+        <path d="M6 4h14a6 6 0 0 1 0 12h-6l10 12h-7L8 16V4z" fill="currentColor"/>
+        <circle cx="24.5" cy="6" r="3" fill="var(--accent)"/>
+      </svg>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="navbtn" data-view="studio"><span class="ico">▣</span><span data-i18n="nav.studio">Studio</span></button>
+      <button class="navbtn" data-view="queue"><span class="ico">☰</span><span data-i18n="nav.queue">Queue</span></button>
+      <button class="navbtn" data-view="library"><span class="ico">▤</span><span data-i18n="nav.library">Library</span></button>
+      <button class="navbtn" data-view="design"><span class="ico">◎</span><span data-i18n="nav.design">Design</span></button>
+      <button class="navbtn" data-view="extend"><span class="ico">⌘</span><span data-i18n="nav.extend">Extend</span></button>
+      <button class="navbtn" data-view="settings"><span class="ico">⚙</span><span data-i18n="nav.settings">Settings</span></button>
+    </nav>
+    <div class="railfoot">
+      <button class="ghost small" id="langToggle" title="Language">EN</button>
+      <span class="version" id="version"></span>
+    </div>
+  </aside>
+
+  <!-- ---------------------------------------------------------- main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="crumbs" id="crumbs"></div>
+      <div class="topactions" id="topactions"></div>
+    </div>
+    <div id="view" class="view"></div>
+  </main>
+</div>
+
+<!-- ---------------------------------------------------------- modals -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" id="modal"></div>
+</div>
+<div class="toasts" id="toasts"></div>
+
+<div class="boot" id="boot">
+  <div class="bootinner">
+    <div class="bootlogo">Reelforge</div>
+    <div class="bootline"><i></i></div>
+    <div class="boottext" id="boottext">starting…</div>
+  </div>
+</div>
+
+<script src="/ui/app.js"></script>
+</body>
+</html>

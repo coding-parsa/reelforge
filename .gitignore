@@ -1,0 +1,31 @@
+# Byte-compiled / build output
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# Runtime data — never commit a user's library or keys
+data/
+projects/
+out/
+logs/
+bin/
+.venv-tts/
+*.db
+*.db-wal
+*.db-shm
+
+# Media the user drops in (the folders stay, the files travel separately)
+assets/broll/*
+assets/music/*
+assets/photos/*
+!assets/broll/.gitkeep
+!assets/music/.gitkeep
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini

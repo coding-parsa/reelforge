@@ -1,0 +1,32 @@
+Reelforge 1.0.0 — quick start
+=============================
+
+1. Double-click Reelforge.exe
+2. Paste an article URL (or some text) and press "Write the script"
+   — you need an API key first: Settings → AI (OpenAI, OpenRouter, Groq,
+     DeepSeek, Anthropic, Gemini, or a local Ollama).
+   No key? Press "Start from scratch" and write the cards yourself.
+3. Check the cards, watch the preview on the right, press "Render video".
+4. The mp4 lands in the Library tab — download it from there.
+
+Requirements
+------------
+* ffmpeg on PATH (or put ffmpeg.exe + ffprobe.exe in a "bin" folder next to
+  this exe). Quickest:  winget install Gyan.FFmpeg
+* Edge (already on Windows) or Chrome — the renderer drives it headless.
+
+Where your data lives
+---------------------
+%LOCALAPPDATA%\Reelforge
+  projects\   the composed page of every video
+  out\        finished mp4 + cover
+  assets\     drop b-roll clips, music, a logo here
+  hooks\      your own Python/JS code in the pipeline
+  themes\     drop-in theme packs
+
+Want it portable? Create a folder named "data" next to the exe — everything
+then stays beside the app.
+
+Windows SmartScreen may warn about an unsigned exe: More info → Run anyway.
+The source is MIT and in the repo; build it yourself with
+  pyinstaller --clean --noconfirm packaging\reelforge.spec

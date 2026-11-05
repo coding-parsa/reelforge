@@ -1,0 +1,11 @@
+{
+  "name": "midnight_rose",
+  "deep": "#120b16",
+  "surface": "#1d1024",
+  "ink": "#f8eef7",
+  "muted": "rgba(248,238,247,.82)",
+  "accent": "#f4a8c8",
+  "accent_deep": "#4a1230",
+  "glow_a": "rgba(244,168,200,.38)",
+  "glow_b": "rgba(90,50,140,.40)"
+}
