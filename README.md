@@ -43,7 +43,7 @@ those two:
 
 ### Windows (single file)
 
-1. Download `Reelforge-1.1.1-win64.zip` from [Releases](https://github.com/coding-parsa/reelforge/releases).
+1. Download `Reelforge-1.1.2-win64.zip` from [Releases](https://github.com/coding-parsa/reelforge/releases).
 2. Put **ffmpeg** somewhere on `PATH` — or drop `ffmpeg.exe`/`ffprobe.exe` next to the app in a `bin\` folder.
    (`winget install Gyan.FFmpeg` is the quickest way.)
 3. Double-click. Edge is already on Windows, so there is nothing else to install.

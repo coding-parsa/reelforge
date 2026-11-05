@@ -35,15 +35,54 @@ def port_file() -> Path:
 
 
 def existing_instance() -> str | None:
+    """URL of a live instance — but only if it is the same version as this exe.
+
+    A window left open from the previous release would otherwise be reused after an
+    update, and every bug you just fixed keeps happening.
+    """
     try:
         info = json.loads(port_file().read_text(encoding="utf-8"))
-        url = f"http://127.0.0.1:{int(info['port'])}/api/about"
-        with urllib.request.urlopen(url, timeout=1.5) as r:
-            if r.status == 200:
-                return f"http://127.0.0.1:{int(info['port'])}/"
+        port = int(info["port"])
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/about", timeout=1.5) as r:
+            if r.status != 200:
+                return None
+            running = json.loads(r.read().decode("utf-8", "replace")).get("version")
+        from . import server
+        if running and running != server.APP_VERSION:
+            print(f"An older Reelforge ({running}) is running on port {port}; replacing it.")
+            _stop_instance(int(info.get("pid") or 0))
+            _close_stale_windows(port)
+            time.sleep(1.5)
+            return None
+        return f"http://127.0.0.1:{port}/"
     except Exception:
         return None
-    return None
+
+
+def _close_stale_windows(port: int) -> None:
+    """The old build's window now points at a dead server: close it instead of leaving a corpse."""
+    if os.name != "nt":
+        return
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | "
+          f"Where-Object {{ $_.CommandLine -like '*--app=http://127.0.0.1:{port}/*' }} | "
+          "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }")
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, timeout=20)
+    except Exception:
+        pass
+
+
+def _stop_instance(pid: int) -> None:
+    """Only ever kills a process whose image is this app."""
+    if not pid:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, timeout=10)
+        else:
+            os.kill(pid, 15)
+    except Exception:
+        pass
 
 
 def wait_ready(port: int, timeout: float = 30.0) -> bool:

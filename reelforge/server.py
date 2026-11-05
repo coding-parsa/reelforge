@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from . import ai, assets_pool, autoscript, hooks, ingest, jobs, paths, render, secrets, store, themes
 
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 web_dir = paths.bundled_dir() / "web"
 
 app = FastAPI(title="Reelforge", version=APP_VERSION, docs_url=None, redoc_url=None)
