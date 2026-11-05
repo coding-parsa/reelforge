@@ -43,7 +43,7 @@ those two:
 
 ### Windows (single file)
 
-1. Download `Reelforge-1.1.0-win64.zip` from [Releases](https://github.com/coding-parsa/reelforge/releases).
+1. Download `Reelforge-1.1.1-win64.zip` from [Releases](https://github.com/coding-parsa/reelforge/releases).
 2. Put **ffmpeg** somewhere on `PATH` — or drop `ffmpeg.exe`/`ffprobe.exe` next to the app in a `bin\` folder.
    (`winget install Gyan.FFmpeg` is the quickest way.)
 3. Double-click. Edge is already on Windows, so there is nothing else to install.
@@ -172,6 +172,21 @@ by the renderer, so preview and output cannot drift apart. That is also why the 
 engine: it needs a browser and ffmpeg, both of which you already have.
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internals.
+
+## When a link won't load
+
+Reelforge reads the page itself, so a few sites will refuse:
+
+| what you see | what it means | what to do |
+|---|---|---|
+| `… refused to be read by an app (HTTP 403)` | the site is behind a bot check | select the article on the page, copy, paste it |
+| `… did not answer in 20 seconds` | slow host, or a VPN that is off | check the VPN, or paste the text |
+| `… had almost no readable text` | the page builds itself with JavaScript | paste the text |
+| `That URL is a category/listing page` | you pasted a hub page | open one article and paste that link |
+
+Every one of these is a message in plain words, not a stack trace, and pasting the text always works.
+Fetches go through the Windows proxy when one is set and fall back to a direct connection, so a VPN that
+is switched off does not look like a broken app. The window never freezes while a page is being read.
 
 ## Notes and limits
 

@@ -17,11 +17,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from . import ai, assets_pool, autoscript, hooks, ingest, jobs, paths, render, secrets, store, themes
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 web_dir = paths.bundled_dir() / "web"
 
 app = FastAPI(title="Reelforge", version=APP_VERSION, docs_url=None, redoc_url=None)
@@ -214,7 +215,7 @@ async def ai_test(request: Request) -> dict:
     if data.get("key"):
         store.set_setting("ai_key", secrets.protect(str(data["key"])))
     try:
-        return ai.test_connection()
+        return await run_in_threadpool(ai.test_connection)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=200)
 
@@ -239,9 +240,11 @@ async def ai_detect(request: Request) -> dict:
 async def ai_models(request: Request) -> dict:
     _guard(request)
     data = await body_json(request)
-    models = ai.list_models(base=(data.get("base_url") or None),
-                            key=(data.get("key") if data.get("key") else None),
-                            provider=(data.get("provider") or None))
+    models = await run_in_threadpool(
+        ai.list_models,
+        base=(data.get("base_url") or None),
+        key=(data.get("key") if data.get("key") else None),
+        provider=(data.get("provider") or None))
     return {"ok": bool(models), "models": models,
             "error": None if models else "The endpoint did not answer with a model list — type the model name."}
 
@@ -304,7 +307,8 @@ async def create_project(request: Request) -> dict:
     pid = None
     if url:
         try:
-            article = ingest.fetch(url)
+            # a thread, not the event loop: one slow site must never freeze the window
+            article = await run_in_threadpool(ingest.fetch, url)
         except Exception as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=200)
         if article.get("listing"):
@@ -383,10 +387,11 @@ async def write_script(pid: str, request: Request) -> dict:
         return JSONResponse({"ok": False, "error": "No AI configured — use “Fill from the article” instead."},
                             status_code=200)
     try:
-        result = ai.generate_script(project.get("article") or {}, brand,
-                                    scene_count=int(data.get("scene_count") or 6),
-                                    extra=(data.get("extra") or "").strip(),
-                                    temperature=data.get("temperature"))
+        result = await run_in_threadpool(
+            ai.generate_script, project.get("article") or {}, brand,
+            scene_count=int(data.get("scene_count") or 6),
+            extra=(data.get("extra") or "").strip(),
+            temperature=data.get("temperature"))
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:600]}, status_code=200)
     script = result["script"]
@@ -419,8 +424,9 @@ async def rewrite_scene(pid: str, request: Request) -> dict:
     if not instruction:
         return JSONResponse({"ok": False, "error": "Tell the AI what to change."}, status_code=200)
     try:
-        new_scene = ai.rewrite_scene(scenes[index], instruction, project.get("article") or {},
-                                     project.get("brand") or jobs.brand_from_settings())
+        new_scene = await run_in_threadpool(
+            ai.rewrite_scene, scenes[index], instruction, project.get("article") or {},
+            project.get("brand") or jobs.brand_from_settings())
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=200)
     scenes[index] = new_scene
@@ -441,7 +447,7 @@ async def make_meta(pid: str, request: Request) -> dict:
         store.update_project(pid, meta={**(project.get("meta") or {}), **meta})
         return {"ok": True, "meta": store.get_project(pid).get("meta"), "mode": "auto"}
     try:
-        meta = ai.generate_meta(project["script"], brand)
+        meta = await run_in_threadpool(ai.generate_meta, project["script"], brand)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:500]}, status_code=200)
     store.update_project(pid, meta={**(project.get("meta") or {}), **meta})
@@ -493,6 +499,14 @@ def project_job(pid: str) -> dict:
     return {"job": store.project_job(pid), "project": _project_summary(store.get_project(pid))}
 
 
+def _frame_sync(project: dict, pid: str):
+    info = jobs.compose_project(project)
+    with render.Browser(jobs.project_page_url(pid), info["canvas"]["w"], info["canvas"]["h"]) as br:
+        br.seek(float(info["scenes"][0]["start"]) + 1.4)
+        data = br.frame(92)
+    return info, data
+
+
 @app.post("/api/project/{pid}/frame")
 async def single_frame(pid: str, request: Request) -> dict:
     """A quick thumbnail of the composed page without rendering the whole video."""
@@ -500,11 +514,8 @@ async def single_frame(pid: str, request: Request) -> dict:
     project = _project_or_404(pid)
     if not project.get("script"):
         return {"ok": False, "error": "no script yet"}
-    info = jobs.compose_project(project)
+    info, data = await run_in_threadpool(_frame_sync, project, pid)
     seed = time.strftime("%H%M%S")
-    with render.Browser(jobs.project_page_url(pid), info["canvas"]["w"], info["canvas"]["h"]) as br:
-        br.seek(float(info["scenes"][0]["start"]) + 1.4)
-        data = br.frame(92)
     shot = paths.projects_dir() / pid / f"thumb_{seed}.jpg"
     shot.write_bytes(data)
     return {"ok": True, "url": f"/projects/{pid}/{shot.name}"}
@@ -516,6 +527,11 @@ async def single_frame(pid: str, request: Request) -> dict:
 async def queue_import(request: Request) -> dict:
     _guard(request)
     data = await body_json(request)
+    # twenty URLs x two seconds is a minute of work: keep it off the event loop
+    return await run_in_threadpool(_queue_import, data)
+
+
+def _queue_import(data: dict) -> dict:
     mode = data.get("mode") or "urls"
     created, skipped, errors = [], 0, []
     urls: list[str] = []

@@ -169,7 +169,8 @@ def parse_html(html: str, url: str = "") -> dict:
     text = "\n\n".join(b["text"] for b in blocks)
     headings = sum(1 for b in blocks if b["type"] == "h2")
     long_paras = sum(1 for b in blocks if b["type"] == "p" and len(b["text"].split()) > 45)
-    listing = headings >= 6 and long_paras < 2
+    # a hub/listing page: many section headings, no actual paragraphs of argument
+    listing = headings >= 6 and long_paras < 2 and words < 1200
     return {
         "listing": listing,
         "url": url,
@@ -215,25 +216,76 @@ def from_text(text: str, title: str = "") -> dict:
     }
 
 
-def fetch(url: str, timeout: int = 45, retries: int = 2) -> dict:
-    """Download and parse a page. Throws a readable error when the site blocks us."""
+# A page has to answer quickly or the app looks broken. Six seconds to connect,
+# twenty to deliver: a slow blog is fine, a dead proxy is not worth waiting for.
+CONNECT_TIMEOUT = 6
+READ_TIMEOUT = 20
+
+
+class FetchError(RuntimeError):
+    """Something went wrong that the person at the keyboard can act on."""
+
+
+def _describe(exc: Exception, url: str) -> str:
+    host = urllib.parse.urlparse(url).netloc or url
+    paste = "Paste the article text instead — it always works."
+    if isinstance(exc, requests.exceptions.Timeout):
+        return f"{host} did not answer in {READ_TIMEOUT} seconds. {paste}"
+    if isinstance(exc, requests.exceptions.SSLError):
+        return f"{host} has a security certificate this app cannot verify. {paste}"
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        return f"Could not reach {host}. Check the link (and your VPN, if you use one), or {paste[0].lower()}{paste[1:]}"
+    if isinstance(exc, requests.exceptions.MissingSchema):
+        return "That does not look like a web address — it should start with https://"
+    return str(exc)[:160] or exc.__class__.__name__
+
+
+def _get(url: str, use_env_proxy: bool):
+    with requests.Session() as s:
+        s.trust_env = use_env_proxy          # False = ignore HTTP_PROXY / the Windows proxy
+        return s.get(url, headers=UA, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+                     allow_redirects=True)
+
+
+def fetch(url: str) -> dict:
+    """Download and parse one article.
+
+    Tries through the machine's proxy first (Iranian users need it), then directly,
+    so a proxy that is switched off does not look like a broken site. Never retries
+    a timeout: the person is watching a spinner, and pasting the text is faster.
+    """
+    url = (url or "").strip()
+    if url and not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
     last = ""
-    for attempt in range(retries + 1):
+    for use_env in (True, False):
+        t0 = time.time()
         try:
-            resp = requests.get(url, headers=UA, timeout=timeout, allow_redirects=True)
-            if resp.status_code >= 400:
-                raise RuntimeError(f"HTTP {resp.status_code}")
-            if not resp.encoding or resp.encoding.lower() in ("iso-8859-1", "ascii"):
-                resp.encoding = resp.apparent_encoding or "utf-8"
-            doc = parse_html(resp.text, resp.url)
-            if doc["word_count"] < 40:
-                raise RuntimeError("page looked empty (JavaScript-only or blocked)")
-            return doc
+            resp = _get(url, use_env)
         except Exception as exc:
-            last = str(exc)[:200]
-            if attempt < retries:
-                time.sleep(2 + attempt * 3)
-    raise RuntimeError(f"could not read {url}: {last}")
+            last = _describe(exc, url)
+            if time.time() - t0 > READ_TIMEOUT + 2:
+                break                        # it timed out; a second attempt only doubles the wait
+            continue
+        if resp.status_code >= 400:
+            host = urllib.parse.urlparse(url).netloc or url
+            if resp.status_code in (401, 403):
+                raise FetchError(f"{host} refused to be read by an app (HTTP {resp.status_code}) — it is "
+                                 "behind a bot check. Paste the article text instead.")
+            if resp.status_code == 404:
+                raise FetchError(f"That page does not exist on {host} (HTTP 404) — check the link.")
+            if resp.status_code == 429:
+                raise FetchError(f"{host} is rate-limiting this computer (HTTP 429) — wait a minute and retry.")
+            raise FetchError(f"{host} answered with an error (HTTP {resp.status_code}). "
+                             "Paste the article text instead.")
+        if not resp.encoding or resp.encoding.lower() in ("iso-8859-1", "ascii"):
+            resp.encoding = resp.apparent_encoding or "utf-8"
+        doc = parse_html(resp.text, resp.url)
+        if doc["word_count"] < 12:
+            raise FetchError("That page had almost no readable text — it probably builds itself with "
+                             "JavaScript, which this app does not run. Paste the article text instead.")
+        return doc
+    raise FetchError(last or "the page could not be read")
 
 
 def fetch_image(url: str, dest_dir, name: str = "photo.jpg") -> str | None:

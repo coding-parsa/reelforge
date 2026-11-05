@@ -149,6 +149,14 @@ async function api(path, body, method) {
   return data;
 }
 
+function networkHint(e) {
+  const m = (e && e.message) || String(e || '');
+  if (/failed to fetch|networkerror|load failed|err_/i.test(m)) {
+    return 'Reelforge lost its connection to its own background service. Close the window and start Reelforge again.';
+  }
+  return m || 'Something went wrong';
+}
+
 function toast(msg, kind = '') {
   const el = document.createElement('div');
   el.className = 'toast ' + kind;
@@ -440,8 +448,15 @@ async function startFromInput(btn) {
   if (!raw) { $('#startInput')?.focus(); toast('Paste a link or some text first'); return; }
   const isUrl = /^https?:\/\//i.test(raw);
   const label = btn.textContent;
+  const action = isUrl ? 'Reading the article' : 'Making the cards';
+  const t0 = Date.now();
   btn.disabled = true;
-  btn.textContent = isUrl ? 'Reading the article…' : 'Making the cards…';
+  btn.textContent = action + '…';
+  const tick = setInterval(() => {
+    const secs = Math.round((Date.now() - t0) / 1000);
+    btn.textContent = `${action}… ${secs}s`;
+    if (isUrl && secs === 15) toast('The site is slow — still trying. Pasting the text is always faster.');
+  }, 1000);
   try {
     const res = await api('/api/project', isUrl ? { url: raw } : { text: raw });
     if (!res.ok) throw new Error(res.error);
@@ -460,8 +475,10 @@ async function startFromInput(btn) {
       toast(s.error || 'Could not build the cards', 'err');
     }
   } catch (e) {
-    toast(e.message, 'err');
+    toast(networkHint(e), 'err');
+    if (isUrl) $('#startInput') && ($('#startInput').value = raw);
   } finally {
+    clearInterval(tick);
     btn.disabled = false;
     btn.textContent = label;
   }
@@ -478,7 +495,7 @@ async function loadDemo(btn) {
     refreshPreview();
     toast('Demo ready — rendering a draft so you can watch it', 'ok');
     startRender('draft');
-  } catch (e) { toast(e.message, 'err'); }
+  } catch (e) { toast(networkHint(e), 'err'); }
   finally { btn.disabled = false; btn.textContent = label; }
 }
 
