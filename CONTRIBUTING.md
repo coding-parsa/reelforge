@@ -6,7 +6,7 @@ keep it that way.
 ## Getting set up
 
 ```bash
-git clone https://github.com/<you>/reelforge && cd reelforge
+git clone https://github.com/coding-parsa/reelforge && cd reelforge
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt        # macOS/Linux: .venv/bin/pip
 .venv/Scripts/python run.py                          # serves on a random port + opens a window

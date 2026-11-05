@@ -43,7 +43,7 @@ those two:
 
 ### Windows (single file)
 
-1. Download `Reelforge.exe` from [Releases](../../releases).
+1. Download `Reelforge-1.0.0-win64.zip` from [Releases](https://github.com/coding-parsa/reelforge/releases).
 2. Put **ffmpeg** somewhere on `PATH` — or drop `ffmpeg.exe`/`ffprobe.exe` next to the app in a `bin\` folder.
    (`winget install Gyan.FFmpeg` is the quickest way.)
 3. Double-click. Edge is already on Windows, so there is nothing else to install.
@@ -57,7 +57,7 @@ To make it portable, create a folder named `data` next to the exe — everything
 ### From source (Windows / macOS / Linux)
 
 ```bash
-git clone https://github.com/<you>/reelforge && cd reelforge
+git clone https://github.com/coding-parsa/reelforge && cd reelforge
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # macOS/Linux: .venv/bin/pip
 .venv/Scripts/python run.py
 ```
